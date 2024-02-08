@@ -1,0 +1,31 @@
+output_dir: ~/scratch/protein_output
+
+dataset:
+  class: EC
+  path: {{ datadir }}
+  percent: 95
+  transform:
+    class: Compose
+    transforms:
+      - class: ProteinView
+        view: residue
+      - class: TruncateProtein
+        max_length: 550
+
+task:
+  class: FunctionAnnotation
+  model:
+    class: ESM
+    path: ~/scratch/protein-model-weights/esm-model-weights/
+    model: {{ model }}
+  mlp_batch_norm: True
+  mlp_dropout: 0.2
+  metric: ['auprc@micro', 'f1_max']
+
+gpus: [0]
+batch_size: 8
+knn: 5
+weighted: exp
+temp: 0.03
+
+model_checkpoint: {{ ckpt }}

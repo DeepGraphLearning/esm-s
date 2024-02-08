@@ -1,0 +1,45 @@
+output_dir: ~/scratch/protein_output
+
+dataset:
+  class: EC
+  path: {{ datadir }}
+  percent: 95
+  transform:
+    class: Compose
+    transforms:
+      - class: ProteinView
+        view: residue
+      - class: TruncateProtein
+        max_length: 550
+
+task:
+  class: FunctionAnnotation
+  model:
+    class: ESM
+    path: ~/scratch/protein-model-weights/esm-model-weights/
+    model: {{ model }}
+  mlp_batch_norm: True
+  mlp_dropout: 0.2
+  metric: ['auprc@micro', 'f1_max']
+
+optimizer:
+  class: Adam
+  lr: 1.0e-4
+
+scheduler:
+  class: ReduceLROnPlateau
+  factor: 0.6
+  patience: 5
+
+engine:
+  gpus: [0] #, 1, 2, 3]
+  batch_size: 8
+  log_interval: 1000
+
+eval_metric: f1_max
+lr_ratio: 0.0
+
+model_checkpoint: {{ ckpt }}
+
+train:
+  num_epoch: 50

@@ -1,0 +1,41 @@
+output_dir: ~/scratch/protein_output
+
+dataset:
+  class: GB1
+  path: ~/projects/rrg-bengioy-ad/oxer/protein-datasets/protein-datasets/
+  atom_feature: null
+  bond_feature: null
+  transform:
+    class: Compose
+    transforms:
+      - class: ProteinView
+        view: residue
+
+task:
+  class: PropertyPrediction
+  model:
+    class: ESM
+    path: ~/scratch/protein-model-weights/esm-model-weights/
+    model: {{ model }}
+    readout: mean
+  criterion: mse
+  metric: ["mae", "rmse", "spearmanr"]
+  normalization: False
+  num_mlp_layer: 2
+
+optimizer:
+  class: Adam
+  lr: 5.0e-5
+
+engine:
+  gpus: [0] #, 1, 2, 3]
+  batch_size: 32
+  gradient_interval: 4
+
+eval_metric: spearmanr
+lr_ratio: 0
+
+model_checkpoint: {{ ckpt }}
+
+train:
+  num_epoch: 100
