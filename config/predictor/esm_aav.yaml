@@ -2,7 +2,7 @@ output_dir: ~/scratch/protein_output
 
 dataset:
   class: AAV
-  path: ~/projects/rrg-bengioy-ad/oxer/protein-datasets/protein-datasets/
+  path: {{ datadir }}
   atom_feature: null
   bond_feature: null
   keep_mutation_region: True
@@ -16,7 +16,7 @@ task:
   class: PropertyPrediction
   model:
     class: ESM
-    path: ~/scratch/protein-model-weights/esm-model-weights/
+    path: {{ modeldir }}
     model: {{ model }}
     readout: mean
   criterion: mse

@@ -79,6 +79,7 @@ if __name__ == "__main__":
     solver, scheduler = util.build_downstream_solver(cfg, dataset)
 
     train_and_validate(cfg, solver, scheduler)
+    torch.save_dict(task.model.state_dict(), "esm_s.pth")
 
     logger.warning("Testing on the test set with sequence identity 95%")
     solver.evaluate("test")

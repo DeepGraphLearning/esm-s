@@ -16,7 +16,7 @@ task:
   class: FunctionAnnotation
   model:
     class: ESM
-    path: ~/scratch/protein-model-weights/esm-model-weights/
+    path: {{ modeldir }}
     model: {{ model }}
   mlp_batch_norm: True
   mlp_dropout: 0.2

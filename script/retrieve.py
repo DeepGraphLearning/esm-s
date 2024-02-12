@@ -108,13 +108,7 @@ if __name__ == "__main__":
             logger.warning("Load checkpoint from %s" % cfg.model_checkpoint)
         cfg.model_checkpoint = os.path.expanduser(cfg.model_checkpoint)
         model_dict = torch.load(cfg.model_checkpoint, map_location=torch.device('cpu'))
-        pretrained_dict = {}
-        for k, v in model_dict['model'].items():
-            if k.startswith("mlp"): continue
-            if k in task.state_dict():
-                pretrained_dict[k] = v
-        task.load_state_dict(pretrained_dict, strict=False)
-        print("Loaded weights: ", pretrained_dict.keys())
+        task.model.load_state_dict(model_dict)
 
     train_keys, train_targets = dump(cfg, train_set, task)
     valid_keys, valid_targets = dump(cfg, valid_set, task)

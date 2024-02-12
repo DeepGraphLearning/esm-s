@@ -142,15 +142,8 @@ def build_downstream_solver(cfg, dataset):
         if comm.get_rank() == 0:
             logger.warning("Load checkpoint from %s" % cfg.model_checkpoint)
         cfg.model_checkpoint = os.path.expanduser(cfg.model_checkpoint)
-        pretrained_dict = torch.load(cfg.model_checkpoint, map_location=torch.device('cpu'))['model']
-        model_dict = task.state_dict()
-        pretrained_dict_ = {}
-        for k, v in pretrained_dict.items():
-            if k.startswith("mlp"): continue
-            if k in model_dict:
-                pretrained_dict_[k] = v
-        model_dict.update(pretrained_dict_)
-        task.load_state_dict(model_dict)
+        model_dict = torch.load(cfg.model_checkpoint, map_location=torch.device('cpu'))
+        task.model.load_state_dict(model_dict)
     
     return solver, scheduler
 
