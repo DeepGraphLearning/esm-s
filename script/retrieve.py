@@ -41,8 +41,85 @@ def dump(cfg, dataset, task):
     return pred, target
 
 
+def auprc(pred, target):
+    """
+    Area under precision-recall curve (PRC).
+
+    Parameters:
+        pred (Tensor): predictions of shape :math:`(n,)`
+        target (Tensor): binary targets of shape :math:`(n,)`
+    """
+    pred, order = torch.sort(pred, descending=True, stable=True)
+    target = target[order]
+    is_not_equal = torch.ones_like(pred)
+    is_not_equal[:-1] = (pred[1:] != pred[:-1]).long()
+    boundary = is_not_equal.nonzero()[:, 0]
+    real_precision_index = torch.bucketize(torch.arange(len(target), device=target.device), boundary)
+    real_precision_index = boundary[real_precision_index]
+    precision = target.cumsum(0) / torch.arange(1, len(target) + 1, device=target.device)
+    precision = precision[real_precision_index]
+    auprc = precision[target == 1].sum() / ((target == 1).sum() + 1e-10)
+    return auprc
+
+
+def f1_max(pred, target):
+    """
+    F1 score with the optimal threshold.
+
+    This function first enumerates all possible thresholds for deciding positive and negative
+    samples, and then pick the threshold with the maximal F1 score.
+
+    Parameters:
+        pred (Tensor): predictions of shape :math:`(B, N)`
+        target (Tensor): binary targets of shape :math:`(B, N)`
+    """
+    order = torch.sort(pred, descending=True, dim=1, stable=True)[1]
+    target = target.gather(1, order)
+    precision = target.cumsum(1) / torch.ones_like(target).cumsum(1)
+    recall = target.cumsum(1) / (target.sum(1, keepdim=True) + 1e-10)
+    is_start = torch.zeros_like(target).bool()
+    is_start[:, 0] = 1
+    is_start = torch.scatter(is_start, 1, order, is_start)
+
+    _pred, all_order = torch.sort(pred.flatten(), descending=True, stable=True)
+    order = order + torch.arange(order.shape[0], device=order.device).unsqueeze(1) * order.shape[1]
+    order = order.flatten()
+    inv_order = torch.zeros_like(order)
+    inv_order[order] = torch.arange(order.shape[0], device=order.device)
+    is_start = is_start.flatten()[all_order]
+    all_order = inv_order[all_order]
+    precision = precision.flatten()
+    recall = recall.flatten()
+    all_precision = precision[all_order] - \
+                    torch.where(is_start, torch.zeros_like(precision), precision[all_order - 1])
+    all_precision = all_precision.cumsum(0) / is_start.cumsum(0)
+    all_recall = recall[all_order] - \
+                 torch.where(is_start, torch.zeros_like(recall), recall[all_order - 1])
+    all_recall = all_recall.cumsum(0) / pred.shape[0]
+    
+    # Consider equal thresholds
+    is_not_equal = torch.ones_like(_pred.flatten())
+    is_not_equal[:-1] = (_pred[1:] != _pred[:-1]).long()
+    boundary = is_not_equal.nonzero()[:, 0]
+    real_index = torch.bucketize(torch.arange(len(_pred), device=target.device), boundary)
+    real_index = boundary[real_index]
+    all_precision = all_precision[real_index]
+    all_recall = all_recall[real_index]
+
+    all_f1 = 2 * all_precision * all_recall / (all_precision + all_recall + 1e-10)
+    return all_f1.max()
+
+
 @torch.no_grad()
-def retrieve(cfg, train_keys, train_targets, test_keys, test_targets, task):
+def evaluate(pred, target):
+    return {
+        "auprc@micro": auprc(pred.flatten(), target.long().flatten()),
+        "f1_max": f1_max(pred, target),
+    }
+
+
+@torch.no_grad()
+def retrieve(cfg, train_keys, train_targets, test_keys, test_targets):
     cos_sim = nn.CosineSimilarity(dim=1)
     preds = []
     for i in tqdm(range(0, len(test_keys), cfg.batch_size)):
@@ -59,7 +136,7 @@ def retrieve(cfg, train_keys, train_targets, test_keys, test_targets, task):
         pred = (pred * _sim).sum(dim=1) / _sim.sum(dim=1)
         preds.append(pred)
     pred = torch.cat(preds, dim=0)
-    return task.evaluate(pred, test_targets)
+    return evaluate(pred, test_targets)
 
 
 if __name__ == "__main__":
@@ -116,11 +193,11 @@ if __name__ == "__main__":
     test50_keys, test50_targets = dump(cfg, test_set50, task)
     test30_keys, test30_targets = dump(cfg, test_set30, task)
 
-    valid_metric = retrieve(cfg, train_keys, train_targets, valid_keys, valid_targets, task)
+    valid_metric = retrieve(cfg, train_keys, train_targets, valid_keys, valid_targets)
     print("Metrics on valid set:", valid_metric)
-    test95_metric = retrieve(cfg, train_keys, train_targets, test95_keys, test95_targets, task)
+    test95_metric = retrieve(cfg, train_keys, train_targets, test95_keys, test95_targets)
     print("Metrics on test set with 0.95 cutoff:", test95_metric)
-    test50_metric = retrieve(cfg, train_keys, train_targets, test50_keys, test50_targets, task)
+    test50_metric = retrieve(cfg, train_keys, train_targets, test50_keys, test50_targets)
     print("Metrics on test set with 0.5 cutoff:", test50_metric)
-    test30_metric = retrieve(cfg, train_keys, train_targets, test30_keys, test30_targets, task)
+    test30_metric = retrieve(cfg, train_keys, train_targets, test30_keys, test30_targets)
     print("Metrics on test set with 0.3 cutoff:", test30_metric)
